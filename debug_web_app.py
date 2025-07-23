@@ -90,17 +90,28 @@ def team_summary():
         
         conn.close()
         
-        # Return sample data for now
+        # Now, actually compute stats from the match table
+        # Fetch all rows
+        conn = sqlite3.connect(lsc_web.db_path)
+        df = pd.read_sql_query(f"SELECT * FROM [{match_table}] WHERE Result IS NOT NULL", conn)
+        conn.close()
+
+        total_matches = len(df)
+        wins = len(df[df['Result'] == 'W'])
+        draws = len(df[df['Result'] == 'D'])
+        losses = len(df[df['Result'] == 'L'])
+        goals_for = df['GF'].sum() if 'GF' in df.columns else 0
+        goals_against = df['GA'].sum() if 'GA' in df.columns else 0
+
         return jsonify({
             'table_used': match_table,
             'columns': columns,
-            'sample_data': str(sample_data),
-            'total_matches': len(sample_data),
-            'wins': 0,
-            'draws': 0,
-            'losses': 0,
-            'goals_for': 0,
-            'goals_against': 0
+            'total_matches': int(total_matches),
+            'wins': int(wins),
+            'draws': int(draws),
+            'losses': int(losses),
+            'goals_for': float(goals_for),
+            'goals_against': float(goals_against)
         })
         
     except Exception as e:
