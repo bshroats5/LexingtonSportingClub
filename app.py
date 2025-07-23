@@ -74,22 +74,33 @@ def player_stats():
     try:
         # Try different possible table structures
         tables = ['player_performance', 'player_stats_1', 'player_standard_stats']
-        
+        error_messages = []
         for table in tables:
             try:
+                # Get the actual column names
+                conn = sqlite3.connect(lsc_web.db_path)
+                cursor = conn.cursor()
+                cursor.execute(f"PRAGMA table_info([{table}])")
+                columns = [col[1] for col in cursor.fetchall()]
+                conn.close()
+                # Find the player column (case-insensitive, contains 'player')
+                player_col = next((col for col in columns if 'player' in col.lower()), None)
+                if not player_col:
+                    error_messages.append(f"{table}: No player column found")
+                    continue
                 query = f"""
                     SELECT * FROM {table} 
-                    WHERE "Unnamed_0_level_0_Player" NOT IN ('Squad Total', 'Opponent Total')
-                    AND "Unnamed_0_level_0_Player" IS NOT NULL
+                    WHERE "{player_col}" NOT IN ('Squad Total', 'Opponent Total')
+                    AND "{player_col}" IS NOT NULL
                     LIMIT 15
                 """
                 results = lsc_web.query_database(query)
                 if results:
                     return jsonify({'table': table, 'data': results})
-            except:
+            except Exception as e:
+                error_messages.append(f"{table}: {e}")
                 continue
-        
-        return jsonify({'error': 'No player stats found'})
+        return jsonify({'error': 'No player stats found', 'details': error_messages})
     except Exception as e:
         return jsonify({'error': str(e)})
 
@@ -106,9 +117,10 @@ def database_info():
             if not table_name.startswith('sqlite_'):
                 count_query = f"SELECT COUNT(*) as count FROM [{table_name}]"
                 count = pd.read_sql_query(count_query, conn)['count'][0]
+                # Convert to Python int for JSON serialization
                 table_info.append({
                     'name': table_name,
-                    'rows': count
+                    'rows': int(count)
                 })
         
         conn.close()
